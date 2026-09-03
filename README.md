@@ -1,102 +1,121 @@
-# Physics Sandbox AI
+# PhysicsAI — Text-to-3D Physics Simulation Sandbox
 
-🧠 ROLE
+PhysicsAI is an AI-powered educational physics simulation platform that converts natural language physics prompts into deterministic 3D interactive simulations with step-by-step AI explanations.
 
-You are a senior front-end engineer and UI/UX designer specializing in AI web apps and interactive tools. Build a single-page web application interface for an AI-powered Physics Simulation platform. The result must feel like a premium, modern SaaS tool or digital laboratory — clean, highly functional, and slick.
+---
 
-📥 INPUTS 
+## 🏛 Architecture
 
-APP NAME:        PhysicsAI (or choose a cool placeholder)
+```
+USER PROMPT
+    │
+    ▼
+FRONTEND (React + Vite + Canvas 3D Viewport)
+    │
+    │  POST /api/simulations/generate
+    ▼
+BACKEND (Node.js + Express + TypeScript)
+    │
+    ▼
+GEMINI API (@google/genai structured extraction)
+    │
+    ▼
+ZOD SCHEMA VALIDATION (Physics bounds & type validation)
+    │
+    ▼
+DETERMINISTIC PHYSICS ENGINE (TypeScript RK4 & Kinematics)
+    ├── Projectile Motion (Trajectory, Apex, Flight Time, Range)
+    ├── Simple Pendulum (Runge-Kutta 4th-Order, Damping, Energy)
+    └── Harmonic Oscillator (Mass-Spring, Damping Regimes, Energy)
+    │
+    ▼
+EDUCATIONAL EXPLANATION GENERATOR (LaTeX equations & observations)
+    │
+    ▼
+FRONTEND 3D VISUALIZATION & AI EXPLANATION SIDEBAR
+```
 
-CORE FUNCTION:   A text-to-3D physics simulation educational tool.
+---
 
-STYLE:           [leave blank → AI picks | or pick one below]
+## 🚀 Quick Start (Local Development)
 
-COLOR MODE:      [auto | manual: primary=#hex, bg=#hex, accent=#hex]
+### 1. Backend Setup
 
-MUST INCLUDE:    A large 3D canvas area, a prompt input bar, and a collapsible sidebar for AI explanations.
-
-🎨 STYLE LIBRARY (AI picks if blank)
-
-Match the style to a modern AI web tool. Examples:
-
-Dark Lab (Recommended): Deep charcoal/black backgrounds, subtle glowing accents (blue/purple), highly technical mono fonts, glassmorphism panels. Best for a complex, pro-level feel.
-
-Light Academic: Clean off-white background, crisp sans-serif fonts, high-contrast borders, blue accents. Best for an accessible, classroom-friendly vibe.
-
-Neo-Brutalist Tech: Stark white/black, thick borders, bright neon accents (yellow/green), visible grid lines. Best for a raw, experimental developer feel.
-
-If STYLE is blank → default to "Dark Lab". Tell the user which you chose and why.
-
-🌈 COLOR HANDLING
-
-If COLOR MODE = auto: derive a 4-token palette from the chosen style. Use oklch() only.
-
---background, --foreground, --panel-bg, --accent
-
-Ensure WCAG AA minimum contrast. 
-
-Always define tokens in src/styles.css. Never hardcode colors in components.
-
-🏗️ APP STRUCTURE & LAYOUT (Crucial for Functionality)
-
-1. App Shell: Full viewport height (100vh), no vertical scrolling for the whole page (hidden overflow).
-
-2. Top Navbar: Minimal. App logo on the left, a "New Simulation" button on the right.
-
-3. Main Viewport (The Canvas): Takes up the majority of the screen. Include a placeholder `<div>` or `<canvas>` styled to look like an active 3D rendering zone (maybe a subtle grid background or crosshairs to imply 3D space). 
-
-4. The Prompt Bar: A floating, prominent input bar at the bottom center of the viewport (similar to ChatGPT or Midjourney interfaces). It needs a text input field, a "Generate" button (with an icon), and a subtle loading state.
-
-5. Explanation Sidebar: A right-side panel (occupying ~25-30% of the screen width) that holds the AI's step-by-step explanation. Include placeholder text for a physics concept, styled nicely with headers, bullet points, and timestamp tags.
-
-⚙️ TECH & INTERACTIVITY
-
-React + TypeScript + Tailwind v4 (semantic tokens in src/styles.css).
-
-Use Lucide React for crisp, modern icons.
-
-Build the 3D Canvas area as an isolated component so a developer can easily inject Three.js or Cannon.js code into it later.
-
-Include a simple toggle state to show/hide the Explanation Sidebar.
-
-Mobile: Stack the layout. Canvas on top, Prompt Bar fixed to the bottom, Sidebar hidden behind a toggle button.
-
-✅ QUALITY BAR
-
-The layout must feel like a software application, not a scrolling website.
-
-Panels and sidebars should have subtle drop shadows or borders to distinguish them from the background.
-
-Inputs and buttons must have clear hover and focus/active states.
-
-Do not use generic "Lorem Ipsum" — write real, physics-related placeholder copy (e.g., "Prompt: Simulate a pendulum with a mass of 5kg and no air resistance...").
-
-🚫 NEVER
-
-Build a scrolling marketing page. This is a 100vh locked web app.
-
-Skip the style/color decision — always state what you chose.
-
-Hardcode colors outside src/styles.css.
-
-This project was built with [Lovable](https://lovable.dev).
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/25a2835e-cd38-46c3-ab4f-821967d14dcb).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
-
-## Development
-
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
-
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
+```bash
+cd backend
+npm install
+cp .env.example .env
+# Set GEMINI_API_KEY in backend/.env
 npm run dev
 ```
+
+The backend server runs on `http://localhost:5000`.
+
+### 2. Frontend Setup
+
+In a separate terminal:
+
+```bash
+npm install
+# Optional: create .env with VITE_API_URL=http://localhost:5000
+npm run dev
+```
+
+The frontend app will open at `http://localhost:5173`.
+
+---
+
+## 🧪 Testing
+
+Run automated tests on the deterministic physics engines, schema validation, and API routes:
+
+```bash
+cd backend
+npm test
+```
+
+---
+
+## 🎯 Supported Physics Simulations
+
+1. **Projectile Motion (`projectile`)**
+   - Natural language: "Simulate a projectile launched at 20 m/s at 45 degrees."
+   - Kinematic engine: calculates trajectory points, maximum apex height, total flight time, horizontal range, and velocity components.
+
+2. **Simple Pendulum Dynamics (`pendulum`)**
+   - Natural language: "Show a pendulum of length 2 meters released at 30 degrees with damping."
+   - Numerical engine: 4th-order Runge-Kutta (RK4) integration of non-linear pendulum ODE with damping and mechanical energy tracking.
+
+3. **Mass-Spring Harmonic Oscillator (`harmonic_oscillator`)**
+   - Natural language: "Simulate a 1kg mass on a spring with stiffness 50 N/m and 1m displacement."
+   - Dynamic engine: computes position, velocity, acceleration, kinetic/potential energy, natural period, and damping regime classification.
+
+---
+
+## 🔒 Security & API Isolation
+
+- **Gemini API Key:** Exists exclusively in backend environment variables (`backend/.env`).
+- **Zero Frontend Secret Exposure:** No AI keys or credentials exist in React code or Vite bundles.
+- **Deterministic Math:** AI performs natural language understanding and educational synthesis; all numerical calculations are computed deterministically in TypeScript.
+- **CORS & Helmet:** Configured to enforce trusted origin communication via `FRONTEND_URL`.
+
+---
+
+## 🌐 Independent Deployment
+
+### Frontend (Static Site / CDN)
+- **Platforms:** Render Static Site, Vercel, AWS S3 + CloudFront
+- **Build Command:** `npm run build`
+- **Environment Variable:** `VITE_API_URL=https://your-backend-url.onrender.com`
+
+### Backend (Web Service)
+- **Platforms:** Render Web Service, AWS App Runner, AWS Elastic Beanstalk, AWS ECS
+- **Root Directory:** `backend`
+- **Build Command:** `npm install && npm run build`
+- **Start Command:** `npm start`
+- **Environment Variables:**
+  - `PORT`: Provided dynamically by host
+  - `GEMINI_API_KEY`: Your Google Gemini API key
+  - `GEMINI_MODEL`: `gemini-2.5-flash`
+  - `FRONTEND_URL`: `https://your-frontend.onrender.com`
+  - `NODE_ENV`: `production`

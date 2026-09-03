@@ -2,22 +2,28 @@ import { useState, type FormEvent } from "react";
 import { Loader2, SendHorizonal, Settings2, Sparkles } from "lucide-react";
 
 const EXAMPLES = [
+  "Double-slit experiment",
+  "Electron drift in wire",
+  "Refraction of light",
+  "Projectile motion",
   "Pendulum motion",
   "Spring-mass system",
   "Colliding spheres",
-  "Inclined plane",
 ];
 
-export function PromptBar({ onGenerate }: { onGenerate?: (prompt: string) => void }) {
+export function PromptBar({
+  onGenerate,
+  isLoading = false,
+}: {
+  onGenerate?: (prompt: string) => void;
+  isLoading?: boolean;
+}) {
   const [value, setValue] = useState("");
-  const [loading, setLoading] = useState(false);
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (!value.trim() || loading) return;
-    setLoading(true);
+    if (!value.trim() || isLoading) return;
     onGenerate?.(value.trim());
-    setTimeout(() => setLoading(false), 1800);
   };
 
   return (
@@ -49,15 +55,15 @@ export function PromptBar({ onGenerate }: { onGenerate?: (prompt: string) => voi
 
           <button
             type="submit"
-            disabled={loading || !value.trim()}
+            disabled={isLoading || !value.trim()}
             className="flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 active:bg-primary/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {loading ? (
+            {isLoading ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
               <SendHorizonal className="size-4" />
             )}
-            {loading ? "Generating" : "Generate"}
+            {isLoading ? "Generating..." : "Generate"}
           </button>
         </div>
       </form>

@@ -75,16 +75,7 @@
 }
 
 @utility canvas-grid {
-  background-image:
-    linear-gradient(to right, oklch(0.42 0.13 20 / 5%) 1px, transparent 1px),
-    linear-gradient(to bottom, oklch(0.42 0.13 20 / 5%) 1px, transparent 1px),
-    linear-gradient(to right, oklch(0.42 0.13 20 / 3%) 1px, transparent 1px),
-    linear-gradient(to bottom, oklch(0.42 0.13 20 / 3%) 1px, transparent 1px);
-  background-size:
-    96px 96px,
-    96px 96px,
-    24px 24px,
-    24px 24px;
+  background-color: #ffffff;
 }
 
 @utility card-shadow {
