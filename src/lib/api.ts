@@ -62,11 +62,33 @@ export interface ApiErrorResponse {
   };
 }
 
-const API_BASE_URL =
-  (import.meta as any).env?.VITE_API_URL || 'http://localhost:5000';
+function getApiBaseUrl(): string {
+  // 1. Explicit environment variable
+  const envUrl = (import.meta as any).env?.VITE_API_URL;
+  if (envUrl && envUrl !== 'http://localhost:5000') {
+    return envUrl.replace(/\/+$/, '');
+  }
+
+  // 2. Auto-detect when running on Render
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host.includes('onrender.com')) {
+      // Default to the known deployed backend URL
+      return 'https://physics-sandbox-ai-1.onrender.com';
+    }
+  }
+
+  // 3. Fallback for SSR process env
+  if (typeof process !== 'undefined' && process.env?.VITE_API_URL) {
+    return process.env.VITE_API_URL.replace(/\/+$/, '');
+  }
+
+  return 'http://localhost:5000';
+}
 
 export async function checkHealth(): Promise<{ success: boolean; message: string }> {
-  const res = await fetch(`${API_BASE_URL}/api/health`);
+  const baseUrl = getApiBaseUrl();
+  const res = await fetch(`${baseUrl}/api/health`);
   if (!res.ok) {
     throw new Error(`Health check failed with status ${res.status}`);
   }
@@ -76,7 +98,8 @@ export async function checkHealth(): Promise<{ success: boolean; message: string
 export async function generateSimulation(
   prompt: string
 ): Promise<GenerateSimulationResponse> {
-  const res = await fetch(`${API_BASE_URL}/api/simulations/generate`, {
+  const baseUrl = getApiBaseUrl();
+  const res = await fetch(`${baseUrl}/api/simulations/generate`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
