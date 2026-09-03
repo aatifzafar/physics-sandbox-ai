@@ -57,6 +57,18 @@ export function createApp(): Express {
   app.use(express.urlencoded({ extended: true }));
 
   // Routes
+  app.get('/', (_req: Request, res: Response) => {
+    res.json({
+      success: true,
+      service: 'PhysicsAI Backend API',
+      status: 'online',
+      endpoints: {
+        health: '/api/health',
+        generate: '/api/simulations/generate (POST)',
+      },
+    });
+  });
+
   app.use('/api', healthRoutes);
   app.use('/api/simulations', simulationRoutes);
 
