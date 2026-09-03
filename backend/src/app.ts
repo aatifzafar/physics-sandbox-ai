@@ -27,16 +27,19 @@ export function createApp(): Express {
         origin: string | undefined,
         callback: (err: Error | null, allow?: boolean) => void
       ) => {
-        // Allow requests with no origin (like mobile apps, curl, server-to-server)
+        // Allow requests with no origin or matching allowed domains
         if (!origin) return callback(null, true);
         if (
           allowedOrigins.includes('*') ||
           allowedOrigins.includes(origin) ||
-          (process.env.NODE_ENV === 'development' && origin.startsWith('http://localhost'))
+          origin.endsWith('.onrender.com') ||
+          origin.includes('localhost') ||
+          origin.endsWith('.vercel.app') ||
+          origin.endsWith('.netlify.app')
         ) {
           return callback(null, true);
         }
-        return callback(new Error(`CORS policy does not allow access from ${origin}`));
+        return callback(null, true); // Permissive in production
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
