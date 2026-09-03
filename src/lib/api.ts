@@ -69,11 +69,13 @@ function getApiBaseUrl(): string {
     return envUrl.replace(/\/+$/, '');
   }
 
-  // 2. Auto-detect when running on Render
+  // 2. Auto-detect when running on Vercel or same-origin
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
+    if (host.includes('vercel.app')) {
+      return ''; // On Vercel, frontend and backend share the same domain!
+    }
     if (host.includes('onrender.com')) {
-      // Default to the known deployed backend URL
       return 'https://physics-sandbox-ai-1.onrender.com';
     }
   }
