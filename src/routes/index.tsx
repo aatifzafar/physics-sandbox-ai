@@ -1,30 +1,44 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { AlertCircle, Atom, Info, PanelRightClose, PanelRightOpen, Plus, X } from "lucide-react";
+import {
+  AlertCircle,
+  Atom,
+  Cpu,
+  Info,
+  Key,
+  PanelRightClose,
+  PanelRightOpen,
+  Plus,
+  Settings,
+  X,
+} from "lucide-react";
 import { SimulationCanvas, type ViewMode } from "../components/simulation/SimulationCanvas";
 import { PromptBar } from "../components/simulation/PromptBar";
 import { ExplanationSidebar } from "../components/simulation/ExplanationSidebar";
+import { ProviderSettingsModal } from "../components/simulation/ProviderSettingsModal";
 import {
   generateSimulation,
+  getStoredProviderOptions,
   type PhysicsSimulationData,
   type SimulationExplanation,
   type SimulationMetadata,
+  type LLMProviderOptions,
 } from "../lib/api";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "PhysicsAI — Text-to-3D Physics Simulation Lab" },
+      { title: "PhysicsAI — Universal Text-to-3D Physics Lab" },
       {
         name: "description",
         content:
-          "Describe any physics scenario in plain language and watch it rendered as an interactive 3D simulation with step-by-step AI explanations.",
+          "Generate interactive real-time 3D simulations for ANY physics topic automatically with step-by-step mathematical explanations.",
       },
-      { property: "og:title", content: "PhysicsAI — Text-to-3D Physics Simulation Lab" },
+      { property: "og:title", content: "PhysicsAI — Universal Text-to-3D Physics Lab" },
       {
         property: "og:description",
         content:
-          "Describe any physics scenario in plain language and watch it rendered as an interactive 3D simulation with step-by-step AI explanations.",
+          "Generate interactive real-time 3D simulations for ANY physics topic automatically with step-by-step mathematical explanations.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -34,72 +48,178 @@ export const Route = createFileRoute("/")({
 });
 
 const DEFAULT_SIMULATION: PhysicsSimulationData = {
-  id: "sim_default_drude",
-  type: "particle_drift",
+  id: "sim_default_nbody",
+  type: "dynamic",
   parameters: {
-    electricField: 100,
-    carrierDensity: 8.5e28,
-    relaxationTime: 2.5e-14,
-    temperature: 300,
-    wireRadius: 1.4,
-    wireLength: 16,
-    particleCount: 50,
+    gravitationalConstant: 12.0,
+    mass1: 25.0,
+    mass2: 20.0,
+    planetSpeed: 2.1,
   },
   trajectory: [],
   results: {
-    driftVelocity: 0.4397,
-    driftVelocityFormatted: "0.44 mm/s",
-    meanFreePath: 2.92e-9,
-    meanFreePathFormatted: "2.92 nm",
-    conductivity: 5.98e7,
-    currentDensity: 5.98e9,
-    mobility: 0.0044,
-    thermalVelocity: 116800,
+    topic: "Three-Body Gravitational Orbital Dynamics & Chaos",
+    category: "Astrophysics & Celestial Mechanics",
+  },
+  dynamicDefinition: {
+    topic: "Three-Body Gravitational Orbital Dynamics & Chaos",
+    category: "Astrophysics & Celestial Mechanics",
+    sceneEnvironment: {
+      cameraPosition: [0, 14, 22],
+      cameraTarget: [0, 0, 0],
+      gridVisible: true,
+      ambientIntensity: 0.7,
+    },
+    physics: {
+      engineType: "nbody_gravity",
+      gravitationalConstant: 12.0,
+      damping: 0.0,
+      timeStep: 0.016,
+    },
+    entities: [
+      {
+        id: "star_alpha",
+        name: "Primary Star (Alpha)",
+        geometry: "sphere",
+        color: "#F59E0B",
+        emissive: "#D97706",
+        emissiveIntensity: 0.8,
+        radius: 1.2,
+        position: [-4.0, 0, 0],
+        velocity: [0, 0, 1.2],
+        mass: 25.0,
+        showTrail: true,
+        trailColor: "#F59E0B",
+        label: "Star Alpha (25 M☉)",
+        physicsRole: "body",
+      },
+      {
+        id: "star_beta",
+        name: "Secondary Star (Beta)",
+        geometry: "sphere",
+        color: "#3B82F6",
+        emissive: "#1D4ED8",
+        emissiveIntensity: 0.8,
+        radius: 1.0,
+        position: [4.0, 0, 0],
+        velocity: [0, 0, -1.2],
+        mass: 20.0,
+        showTrail: true,
+        trailColor: "#3B82F6",
+        label: "Star Beta (20 M☉)",
+        physicsRole: "body",
+      },
+      {
+        id: "planet_gamma",
+        name: "Circumbinary Planet (Gamma)",
+        geometry: "sphere",
+        color: "#10B981",
+        emissive: "#059669",
+        emissiveIntensity: 0.6,
+        radius: 0.5,
+        position: [0, 0, 7.5],
+        velocity: [-2.1, 0.4, 0],
+        mass: 1.0,
+        showTrail: true,
+        trailColor: "#10B981",
+        label: "Planet Gamma",
+        physicsRole: "body",
+      },
+    ],
+    parameters: [
+      {
+        key: "gravitationalConstant",
+        label: "Gravitational Constant (G)",
+        value: 12.0,
+        min: 1.0,
+        max: 30.0,
+        step: 0.5,
+        unit: "G",
+        description: "Mutual gravitational attraction constant",
+      },
+      {
+        key: "mass1",
+        label: "Primary Star Mass (M₁)",
+        value: 25.0,
+        min: 5.0,
+        max: 60.0,
+        step: 1.0,
+        unit: "M☉",
+        description: "Mass of primary yellow star",
+      },
+      {
+        key: "mass2",
+        label: "Secondary Star Mass (M₂)",
+        value: 20.0,
+        min: 5.0,
+        max: 60.0,
+        step: 1.0,
+        unit: "M☉",
+        description: "Mass of secondary blue star",
+      },
+      {
+        key: "planetSpeed",
+        label: "Planet Orbital Speed",
+        value: 2.1,
+        min: 0.5,
+        max: 5.0,
+        step: 0.1,
+        unit: "km/s",
+        description: "Initial orbital tangential velocity of planet",
+      },
+    ],
+    telemetry: [
+      { key: "totalEnergy", label: "Hamiltonian Total Energy", unit: "J", format: "0.00" },
+      { key: "kineticEnergy", label: "Total Kinetic Energy", unit: "J", format: "0.00" },
+      { key: "potentialEnergy", label: "Gravitational Potential Energy", unit: "J", format: "0.00" },
+    ],
   },
 };
 
 const DEFAULT_EXPLANATION: SimulationExplanation = {
-  title: "Microscopic Electron Drift in a Conducting Wire",
+  title: "Three-Body Gravitational Problem & Deterministic Chaos",
   summary:
-    "This simulation visualizes the microscopic motion of conduction electrons inside a metallic wire under the influence of an external electric field. It highlights the stark contrast between rapid, random thermal motion and the slow, collective drift caused by the field amidst frequent ionic lattice collisions.",
+    "This simulation computes the simultaneous gravitational mutual interactions among three celestial bodies in 3D space. The nonlinear gravitational coupling between two massive stellar cores and an orbiting planet demonstrates sensitive dependence on initial conditions (deterministic chaos).",
   keyConcepts: [
-    "Drude Model: A classical framework describing charge carriers undergoing continuous acceleration interrupted by instantaneous scattering events.",
-    "Thermal vs. Drift Motion: Random thermal motion occurs at extremely high velocities in all directions, whereas drift velocity is the tiny net directional average caused by the electric field.",
-    "Mean Free Path and Relaxation Time: The average distance and average time elapsed between successive electron collisions with lattice ions.",
-    "Conductivity and Current Density: Macroscopic properties directly resulting from microscopic carrier density, charge, and electron mobility.",
+    "Newtonian Universal Gravitation: Every body attracts every other mass with force F = G (m₁ m₂) / r².",
+    "Deterministic Chaos: Unlike two-body Keplerian orbits, general three-body systems have no analytical closed-form solution and exhibit chaotic orbital evolution.",
+    "Energy & Angular Momentum Conservation: Total mechanical energy E = E_k + E_p remains strictly conserved throughout the mutual orbit.",
   ],
   equations: [
-    "v_d = \\frac{e E \\tau}{m_e}",
-    "J = \\sigma E = n e v_d",
-    "\\sigma = \\frac{n e^2 \\tau}{m_e}",
-    "v_{\\text{th}} = \\sqrt{\\frac{3 k_B T}{m_e}}",
-    "\\lambda = v_{\\text{th}} \\tau",
+    "\\vec{F}_i = \\sum_{j \\neq i} G \\frac{m_i m_j}{|\\vec{r}_j - \\vec{r}_i|^3} (\\vec{r}_j - \\vec{r}_i)",
+    "\\frac{d^2\\vec{r}_i}{dt^2} = \\sum_{j \\neq i} G \\frac{m_j}{|\\vec{r}_j - \\vec{r}_i|^3} (\\vec{r}_j - \\vec{r}_i)",
+    "E_{\\text{total}} = \\sum_i \\frac{1}{2} m_i v_i^2 - \\sum_{i < j} \\frac{G m_i m_j}{|\\vec{r}_j - \\vec{r}_i|} = \\text{const}",
   ],
   simulationSteps: [
-    "Initialize free electrons at random coordinates within the wire geometry with isotropic thermal velocities.",
-    "Apply continuous electric field force accelerating electrons along the wire axis.",
-    "Compute elastic collision reflections upon contact with stationary metallic copper ions.",
-    "Track instantaneous drift velocity, current density, and mean free path in real time.",
+    "Initialize position and velocity vectors for celestial bodies in 3D space.",
+    "Evaluate pairwise gravitational attraction forces between all bodies at each time step Δt.",
+    "Symplectically integrate velocity and coordinate updates.",
+    "Render real-time 3D orbital trails and verify energy conservation.",
   ],
   observations: [
-    "Calculated electron drift velocity is ~0.44 mm/s under E = 100 V/m.",
-    "Mean free path between lattice ion collisions is ~2.92 nm.",
-    "Macroscopic electrical conductivity is ~5.98 × 10⁷ S/m.",
-    "Current density flowing through conductor is ~5.98 × 10⁹ A/m².",
+    "Binary stellar system rotates about their common center of mass.",
+    "Planet trajectory precesses non-linearly across orbital cycles.",
+    "Total energy remains stable within symplectic numerical tolerance.",
   ],
 };
 
 const DEFAULT_METADATA: SimulationMetadata = {
-  modelUsed: "gemini-3.7-flash",
+  modelUsed: "universal-physics-engine",
   retries: 0,
   fallbackUsed: false,
-  template: "particle_drift",
+  template: "dynamic",
+  provider: "ai-synthesis",
 };
 
 function Index() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("orbit");
   const [resetSignal, setResetSignal] = useState(0);
+
+  const [providerOptions, setProviderOptions] = useState<LLMProviderOptions>(() =>
+    getStoredProviderOptions()
+  );
 
   const [simulation, setSimulation] = useState<PhysicsSimulationData | null>(
     DEFAULT_SIMULATION
@@ -119,7 +239,7 @@ function Index() {
   const [graphics, setGraphics] = useState({
     cameraMode: "free" as "free" | "follow",
     showTrail: true,
-    trailLength: 150,
+    trailLength: 180,
     showGrid: true,
     showAxes: true,
     showLabels: true,
@@ -140,7 +260,7 @@ function Index() {
     setStatusMessage(null);
     setStaleNote(null);
     try {
-      const res = await generateSimulation(prompt);
+      const res = await generateSimulation(prompt, providerOptions);
       setSimulation(res.simulation);
       setExplanation(res.explanation);
       setMetadata(res.metadata || null);
@@ -155,12 +275,12 @@ function Index() {
 
       if (res.metadata?.fallbackUsed) {
         setStatusMessage(
-          `Primary model was busy. Simulation generated via ${res.metadata.modelUsed}.`
+          `Generated via ${res.metadata.modelUsed} (${res.metadata.provider || "procedural engine"}).`
         );
       }
     } catch (err: any) {
       setErrorMessage(
-        err.message || "Failed to generate simulation. Please check your prompt and try again."
+        err.message || "Failed to generate simulation. Please check your prompt or API key settings."
       );
       setStaleNote(`Showing previous simulation — generation failed for "${prompt}"`);
     } finally {
@@ -180,18 +300,10 @@ function Index() {
 
   const handleUpdateParameters = (newParams: Record<string, number>) => {
     setSimulation((prev) => {
-      if (!prev) {
-        return {
-          id: `sim_${Date.now()}`,
-          type: "particle_drift",
-          parameters: newParams,
-          trajectory: [],
-          results: {},
-        };
-      }
+      if (!prev) return null;
       return {
         ...prev,
-        parameters: newParams,
+        parameters: { ...prev.parameters, ...newParams },
       };
     });
   };
@@ -200,22 +312,47 @@ function Index() {
     setGraphics((prev) => ({ ...prev, ...updated }));
   };
 
+  const handleSaveProviderOptions = (newOptions: LLMProviderOptions) => {
+    setProviderOptions(newOptions);
+  };
+
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-canvas text-foreground">
+      {/* Provider & API Key Modal */}
+      <ProviderSettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onSave={handleSaveProviderOptions}
+      />
+
       {/* Top navbar */}
       <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-background px-4">
         <div className="flex items-center gap-2.5">
-          <span className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
+          <span className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-sm">
             <Atom className="size-4.5" />
           </span>
           <span className="text-sm font-semibold tracking-tight">
             Physics<span className="text-primary">AI</span>
           </span>
           <span className="hidden rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground sm:inline">
-            lab · v0.9
+            universal · dynamic
           </span>
         </div>
+
         <div className="flex items-center gap-2">
+          {/* Provider / API Key Button */}
+          <button
+            type="button"
+            onClick={() => setIsSettingsOpen(true)}
+            className="flex h-9 items-center gap-1.5 rounded-md border border-border bg-secondary/40 px-3 text-xs font-medium text-foreground transition-colors hover:bg-secondary focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            <Key className="size-3.5 text-primary" />
+            <span className="hidden sm:inline">AI Settings:</span>
+            <span className="font-mono text-primary capitalize">
+              {providerOptions.provider || "gemini"}
+            </span>
+          </button>
+
           <button
             type="button"
             onClick={() => setSidebarOpen((v) => !v)}
@@ -228,13 +365,14 @@ function Index() {
               <PanelRightOpen className="size-4" />
             )}
           </button>
+
           <button
             type="button"
             onClick={handleNewSimulation}
-            className="flex h-9 items-center gap-2 rounded-md bg-primary px-3.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="flex h-9 items-center gap-1.5 rounded-md bg-primary px-3.5 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
-            <Plus className="size-4" />
-            New Simulation
+            <Plus className="size-3.5" />
+            Reset Default
           </button>
         </div>
       </header>
@@ -296,7 +434,12 @@ function Index() {
             onUpdateGraphics={handleUpdateGraphics}
           />
           <div className="pointer-events-none absolute inset-x-0 bottom-5 z-20 flex justify-center px-4">
-            <PromptBar onGenerate={handleGenerate} isLoading={isLoading} />
+            <PromptBar
+              onGenerate={handleGenerate}
+              onOpenSettings={() => setIsSettingsOpen(true)}
+              activeProvider={providerOptions.provider || "gemini"}
+              isLoading={isLoading}
+            />
           </div>
         </main>
 
@@ -315,8 +458,9 @@ function Index() {
                 parameters={simulation?.parameters}
                 results={simulation?.results}
                 timestamp={timestamp}
-                simulationType={simulation?.type || "projectile"}
+                simulationType={simulation?.type || "dynamic"}
                 metadata={metadata}
+                dynamicDefinition={simulation?.dynamicDefinition}
                 onUpdateParameters={handleUpdateParameters}
                 graphics={graphics}
                 onUpdateGraphics={handleUpdateGraphics}

@@ -1,138 +1,69 @@
-import { GoogleGenAI, Type } from '@google/genai';
 import {
   SimulationType,
   SimulationParameters,
   SimulationResults,
   SimulationExplanation,
+  LLMProviderOptions,
 } from '../types/simulation.types.js';
-import { DEFAULT_GEMINI_MODEL } from '../utils/constants.js';
-
-function robustJsonParse(jsonString: string): any {
-  try {
-    return JSON.parse(jsonString);
-  } catch {
-    // Replace unescaped backslashes commonly produced by LLMs writing LaTeX in JSON
-    const sanitized = jsonString.replace(/\\([^"\\/bfnrtu])/g, '\\\\$1');
-    return JSON.parse(sanitized);
-  }
-}
+import { llmService, parseRobustJson } from './llm.service.js';
 
 export class ExplanationService {
-  private aiClient: GoogleGenAI | null = null;
-  private modelName: string;
-
-  constructor() {
-    const apiKey = process.env.GEMINI_API_KEY;
-    this.modelName = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
-
-    if (apiKey) {
-      this.aiClient = new GoogleGenAI({ apiKey });
-    }
-  }
-
-  private getClient(): GoogleGenAI {
-    if (!this.aiClient) {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error(
-          'GEMINI_API_KEY is not configured on the server. Please set GEMINI_API_KEY in your environment.'
-        );
-      }
-      this.aiClient = new GoogleGenAI({ apiKey });
-    }
-    return this.aiClient;
-  }
-
   async generateExplanation(
     prompt: string,
     simulationType: SimulationType,
     parameters: SimulationParameters,
-    results: SimulationResults
+    results: SimulationResults,
+    providerOptions?: LLMProviderOptions
   ): Promise<SimulationExplanation> {
-    const candidateModels = [
-      this.modelName,
-      'gemini-3.7-flash',
-      'gemini-3.5-flash',
-      'gemini-flash-latest',
-    ];
-
-    for (const model of candidateModels) {
-      try {
-        const client = this.getClient();
-
-        const systemInstruction = `
+    const systemInstruction = `
 You are an expert physics educator. You will receive a user prompt, a physics simulation type, the simulation parameters, and the calculated results.
 Generate a structured, engaging, educational explanation formatted in JSON.
 For equations, provide standard clean LaTeX mathematical expressions without markdown ticks (e.g. "d \\sin\\theta = m \\lambda", "\\Delta y = \\frac{\\lambda L}{d}").
 Ensure the explanation strictly corresponds to the simulation domain (${simulationType}).
 For double_slit, emphasize wave-particle duality, path length difference, Huygens wavelets, and quantum superposition.
+
+Output format JSON:
+{
+  "title": "Title",
+  "summary": "Summary paragraph",
+  "keyConcepts": ["Concept 1", "Concept 2", ...],
+  "equations": ["LaTeX 1", "LaTeX 2", ...],
+  "simulationSteps": ["Step 1", "Step 2", ...],
+  "observations": ["Observation 1", "Observation 2", ...]
+}
 `;
 
-        const contents = JSON.stringify({
-          userPrompt: prompt,
-          simulationType,
-          parameters,
-          results,
-        });
+    const contents = JSON.stringify({
+      userPrompt: prompt,
+      simulationType,
+      parameters,
+      results,
+    });
 
-        const response = await client.models.generateContent({
-          model,
-          contents,
-          config: {
-            systemInstruction,
-            responseMimeType: 'application/json',
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING },
-                summary: { type: Type.STRING },
-                keyConcepts: {
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING },
-                },
-                equations: {
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING },
-                },
-                simulationSteps: {
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING },
-                },
-                observations: {
-                  type: Type.ARRAY,
-                  items: { type: Type.STRING },
-                },
-              },
-              required: [
-                'title',
-                'summary',
-                'keyConcepts',
-                'equations',
-                'simulationSteps',
-                'observations',
-              ],
-            },
-          },
-        });
+    try {
+      const response = await llmService.generateCompletion(
+        contents,
+        {
+          systemInstruction,
+          responseMimeType: 'application/json',
+          temperature: 0.3,
+        },
+        providerOptions
+      );
 
-        const text = response.text;
-        if (text) {
-          const parsed = robustJsonParse(text);
-          return {
-            title: parsed.title,
-            summary: parsed.summary,
-            keyConcepts: parsed.keyConcepts || [],
-            equations: parsed.equations || [],
-            simulationSteps: parsed.simulationSteps || [],
-            observations: parsed.observations || [],
-          };
-        }
-      } catch (err: any) {
-        console.warn(`[Explanation Service] Model ${model} failed (${err.message})`);
-        if (err.message?.includes('RESOURCE_EXHAUSTED') || err.message?.includes('429')) {
-          break; // Quota limit reached on project, immediately use deterministic physics explanation
-        }
+      const parsed = parseRobustJson(response.text);
+      if (parsed && parsed.title) {
+        return {
+          title: parsed.title,
+          summary: parsed.summary || '',
+          keyConcepts: parsed.keyConcepts || [],
+          equations: parsed.equations || [],
+          simulationSteps: parsed.simulationSteps || [],
+          observations: parsed.observations || [],
+        };
       }
+    } catch (err: any) {
+      console.warn(`[Explanation Service] LLM generation failed: ${err.message}. Using built-in physics explanation.`);
     }
 
     return this.getFallbackExplanation(simulationType, parameters, results);

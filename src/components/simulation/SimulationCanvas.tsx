@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 
 import type { PhysicsSimulationData } from "../../lib/api";
+import { LiveDynamicSimulation } from "./LiveDynamicSimulation";
 
 export type ViewMode = "orbit" | "pan" | "zoom";
 
@@ -1746,7 +1747,17 @@ export function SimulationCanvas({
           <CoordinateAxes visible={graphics.showAxes} />
 
           {/* Active Domain Scene Template */}
-          {simulation?.type === "double_slit" ? (
+          {simulation?.type === "dynamic" || simulation?.dynamicDefinition ? (
+            <LiveDynamicSimulation
+              simulation={simulation}
+              graphics={graphics}
+              isPlaying={isPlaying}
+              speedMultiplier={speedMultiplier}
+              resetSignal={resetSignal}
+              onTelemetry={setTelemetry}
+              onObjectPos={handleObjectPos}
+            />
+          ) : simulation?.type === "double_slit" ? (
             <LiveDoubleSlit
               simulation={simulation}
               graphics={graphics}

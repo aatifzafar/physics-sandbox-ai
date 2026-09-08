@@ -16,7 +16,12 @@ import {
 } from "lucide-react";
 import katex from "katex";
 
-import type { SimulationExplanation, SimulationMetadata, SimulationType } from "../../lib/api";
+import type {
+  SimulationExplanation,
+  SimulationMetadata,
+  SimulationType,
+  DynamicSimulationDefinition,
+} from "../../lib/api";
 import type { GraphicsSettings } from "./SimulationCanvas";
 
 type Tab = "explanation" | "equations" | "physics" | "graphics";
@@ -106,6 +111,7 @@ export interface ExplanationSidebarProps {
   timestamp?: string;
   simulationType?: SimulationType;
   metadata?: SimulationMetadata | null;
+  dynamicDefinition?: DynamicSimulationDefinition;
   onUpdateParameters?: (params: Record<string, number>) => void;
   graphics?: GraphicsSettings;
   onUpdateGraphics?: (g: Partial<GraphicsSettings>) => void;
@@ -119,6 +125,7 @@ export function ExplanationSidebar({
   timestamp,
   simulationType = "particle_drift",
   metadata,
+  dynamicDefinition,
   onUpdateParameters,
   graphics = {
     cameraMode: "free",
@@ -170,7 +177,9 @@ export function ExplanationSidebar({
   };
 
   const domainLabel =
-    simulationType === "double_slit"
+    dynamicDefinition?.topic ||
+    results?.topic ||
+    (simulationType === "double_slit"
       ? "Double-Slit Interference"
       : simulationType === "refraction"
         ? "Snell's Law & Refraction"
@@ -182,7 +191,9 @@ export function ExplanationSidebar({
               ? "Harmonic Pendulum"
               : simulationType === "harmonic_oscillator"
                 ? "Spring-Mass Oscillator"
-                : "Kinematic Projectile";
+                : simulationType === "projectile"
+                  ? "Kinematic Projectile"
+                  : "Dynamic 3D Simulation");
 
   return (
     <aside className="flex h-full flex-col border-l border-border bg-panel text-panel-foreground shadow-lg">
@@ -339,7 +350,39 @@ export function ExplanationSidebar({
               Adjusting parameters updates the simulation motion in real time.
             </div>
 
-            {simulationType === "double_slit" ? (
+            {dynamicDefinition?.parameters && dynamicDefinition.parameters.length > 0 ? (
+              <div className="space-y-4">
+                {dynamicDefinition.parameters.map((p) => {
+                  const val = currentParams[p.key] ?? p.value;
+                  return (
+                    <div key={p.key}>
+                      <div className="flex justify-between text-xs font-medium">
+                        <span>{p.label}</span>
+                        <span className="font-mono text-primary">
+                          {Number(val).toFixed(p.step < 0.1 ? 2 : 1)} {p.unit}
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min={p.min}
+                        max={p.max}
+                        step={p.step}
+                        value={val}
+                        onChange={(e) =>
+                          handleParamChange(p.key, parseFloat(e.target.value))
+                        }
+                        className="mt-1.5 w-full accent-primary"
+                      />
+                      {p.description && (
+                        <p className="mt-0.5 text-[10px] text-muted-foreground">
+                          {p.description}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : simulationType === "double_slit" ? (
               <div className="space-y-4">
                 <div>
                   <div className="flex justify-between text-xs font-medium">

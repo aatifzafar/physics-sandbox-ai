@@ -43,7 +43,16 @@ export function createApp(): Express {
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
+      allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'x-llm-api-key',
+        'x-llm-provider',
+        'x-llm-model',
+        'x-llm-base-url',
+        'X-Requested-With',
+        'Accept',
+      ],
     })
   );
 

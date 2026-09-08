@@ -1,8 +1,6 @@
-import { GoogleGenAI, Type } from '@google/genai';
-import {
-  SimulationType,
-} from '../types/simulation.types.js';
-import { DEFAULT_GEMINI_MODEL } from '../utils/constants.js';
+import { SimulationType } from '../types/simulation.types.js';
+import { llmService, parseRobustJson } from './llm.service.js';
+import { LLMProviderOptions } from '../types/simulation.types.js';
 
 export interface ExtractedSimulationIntent {
   simulationType: SimulationType;
@@ -12,237 +10,109 @@ export interface ExtractedSimulationIntent {
   fallbackUsed: boolean;
 }
 
-function robustJsonParse(jsonString: string): any {
-  try {
-    return JSON.parse(jsonString);
-  } catch {
-    const sanitized = jsonString.replace(/\\([^"\\/bfnrtu])/g, '\\\\$1');
-    return JSON.parse(sanitized);
-  }
-}
-
 export class AIService {
-  private aiClient: GoogleGenAI | null = null;
-  private modelName: string;
-
-  constructor() {
-    const apiKey = process.env.GEMINI_API_KEY;
-    this.modelName = process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
-
-    if (apiKey) {
-      this.aiClient = new GoogleGenAI({ apiKey });
-    }
-  }
-
-  private getClient(): GoogleGenAI {
-    if (!this.aiClient) {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error(
-          'GEMINI_API_KEY is not configured on the server. Please set GEMINI_API_KEY in your environment.'
-        );
-      }
-      this.aiClient = new GoogleGenAI({ apiKey });
-    }
-    return this.aiClient;
-  }
-
   /**
    * Classifies domain and extracts structured simulation parameters with self-check validation and retry
    */
   async extractSimulationParameters(
-    prompt: string
+    prompt: string,
+    providerOptions?: LLMProviderOptions
   ): Promise<ExtractedSimulationIntent> {
-    const client = this.getClient();
-
     const systemInstruction = `
 You are an expert physics AI assistant that parses natural language physics requests into structured domain simulation parameters.
-You must categorize the request into the single MOST ACCURATE physics domain template:
+Classify the request into the single MOST ACCURATE physics domain template:
 
 1. "double_slit" (Young's Double-Slit Interference & Wave-Particle Duality):
-   - Use this whenever the prompt mentions double slit, Young's experiment, interference pattern, fringe spacing, two slits, quantum interference, diffraction fringes, or wave-particle duality.
-   - Parameters:
-     * wavelength: in nm (default 532)
-     * slitSeparation: in mm (default 0.25)
-     * distanceToScreen: in meters (default 1.2)
-     * slitWidth: in micrometers (default 20)
-     * mode: "wave" or "particle" (default "wave")
+   - Use whenever prompt mentions double slit, Young's experiment, interference pattern, fringe spacing, two slits, or diffraction fringes.
+   - Parameters: wavelength (nm, default 532), slitSeparation (mm, default 0.25), distanceToScreen (m, default 1.2), slitWidth (micrometers, default 20), mode ("wave"|"particle", default "wave")
 
-2. "refraction" (Optics / Snell's Law / Light propagation through media):
-   - Use this whenever the prompt mentions refraction, Snell's law, laser entering glass/water, optical index, total internal reflection, or ray bending.
-   - Parameters:
-     * incidentAngle: angle of incidence theta1 in degrees between 0 and 89 (default 45)
-     * n1: refractive index of medium 1 (default 1.00 for air)
-     * n2: refractive index of medium 2 (default 1.50 for crown glass)
-     * wavelength: in nm (default 532)
+2. "refraction" (Optics / Snell's Law / Light refraction):
+   - Use for refraction, Snell's law, laser entering glass/water, optical index, total internal reflection, prism.
+   - Parameters: incidentAngle (deg, default 45), n1 (default 1.0), n2 (default 1.5), wavelength (nm, default 532)
 
 3. "particle_drift" (Drude model / electron transport in conductor):
-   - Use this whenever the prompt describes electron motion in wires, conductors, current flow, electric field drift, charge carriers, or Drude model.
-   - Parameters:
-     * electricField: in V/m (default 100)
-     * carrierDensity: in electrons/m^3 (default 8.5e28)
-     * relaxationTime: in seconds (default 2.5e-14)
-     * temperature: in Kelvin (default 300)
-     * particleCount: number of electrons (default 40)
+   - Use for electron motion in wires, conductors, electric field drift, charge carriers.
+   - Parameters: electricField (V/m, default 100), carrierDensity (default 8.5e28), relaxationTime (s, default 2.5e-14), temperature (K, default 300), particleCount (default 40)
 
 4. "collision" (2-body impact / momentum transfer):
-   - Use this whenever the prompt describes colliding spheres, billiard balls, elastic/inelastic collisions, impact, or momentum conservation.
-   - Parameters:
-     * mass1: in kg (default 2.0)
-     * mass2: in kg (default 1.0)
-     * velocity1: in m/s (default 5.0)
-     * velocity2: in m/s (default -3.0)
-     * elasticity: between 0 and 1 (default 1.0)
+   - Use for colliding spheres, billiard balls, elastic/inelastic collisions, impact momentum.
+   - Parameters: mass1 (kg, default 2.0), mass2 (kg, default 1.0), velocity1 (m/s, default 5.0), velocity2 (m/s, default -3.0), elasticity (0 to 1, default 1.0)
 
 5. "projectile" (ballistic trajectory in gravity):
-   - Use this for balls thrown, cannons, artillery, stones launched, ballistic arcs.
-   - Parameters:
-     * initialVelocity: in m/s (default 20)
-     * angle: in degrees between 0 and 90 (default 45)
-     * gravity: in m/s^2 (default 9.81)
-     * initialHeight: in meters (default 0)
+   - Use for balls thrown, cannons, artillery, stones launched, ballistic arcs.
+   - Parameters: initialVelocity (m/s, default 20), angle (deg, default 45), gravity (m/s^2, default 9.81), initialHeight (m, default 0)
 
 6. "pendulum" (suspended swinging mass):
-   - Use this for pendulums, swinging bobs, simple or damped gravity pendulums.
-   - Parameters:
-     * length: in meters (default 2.0)
-     * initialAngle: in degrees between -179 and 179 (default 30)
-     * mass: in kg (default 1.0)
-     * gravity: in m/s^2 (default 9.81)
-     * damping: damping coefficient >= 0 (default 0.0)
+   - Use for pendulums, swinging bobs, simple or damped gravity pendulums.
+   - Parameters: length (m, default 2.0), initialAngle (deg, default 30), mass (kg, default 1.0), gravity (m/s^2, default 9.81), damping (default 0.0)
 
 7. "harmonic_oscillator" (mass on a mechanical spring):
-   - Use ONLY for mechanical mass-spring oscillators, vibration of springs, Hooke's law mechanical systems.
-   - Parameters:
-     * mass: in kg (default 1.0)
-     * springConstant: in N/m (default 50)
-     * initialDisplacement: in meters (default 1.0)
-     * damping: damping coefficient >= 0 (default 0)
+   - Use for mass-spring oscillators, vibration of springs, Hooke's law mechanical systems.
+   - Parameters: mass (kg, default 1.0), springConstant (N/m, default 50), initialDisplacement (m, default 1.0), damping (default 0)
 
-CRITICAL INSTRUCTION: Never map double-slit interference to kinematics or oscillators.
-Always return numeric values in standard specified units.
+8. "dynamic" (Any other custom / arbitrary physics topic):
+   - Use for N-body gravity, orbits, Lorentz forces, fluid vortices, black holes, thermodynamics, quantum wave packets, or any topic not listed above.
+
+Output JSON format:
+{
+  "simulationType": "double_slit" | "refraction" | "particle_drift" | "collision" | "projectile" | "pendulum" | "harmonic_oscillator" | "dynamic",
+  "parameters": { ... }
+}
 `;
-
-    const candidateModels = [
-      this.modelName,
-      'gemini-3.7-flash',
-      'gemini-3.5-flash',
-      'gemini-flash-latest',
-      'gemini-3.1-flash-lite',
-    ];
 
     let retries = 0;
 
-    for (const model of candidateModels) {
-      try {
-        const response = await client.models.generateContent({
-          model,
-          contents: prompt,
-          config: {
-            systemInstruction,
-            responseMimeType: 'application/json',
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                simulationType: {
-                  type: Type.STRING,
-                  enum: [
-                    'double_slit',
-                    'refraction',
-                    'particle_drift',
-                    'collision',
-                    'projectile',
-                    'pendulum',
-                    'harmonic_oscillator',
-                  ],
-                  description: 'The classified physics simulation domain template',
-                },
-                parameters: {
-                  type: Type.OBJECT,
-                  description: 'Extracted simulation parameters',
-                  properties: {
-                    wavelength: { type: Type.NUMBER },
-                    slitSeparation: { type: Type.NUMBER },
-                    distanceToScreen: { type: Type.NUMBER },
-                    slitWidth: { type: Type.NUMBER },
-                    mode: { type: Type.STRING },
-                    incidentAngle: { type: Type.NUMBER },
-                    n1: { type: Type.NUMBER },
-                    n2: { type: Type.NUMBER },
-                    electricField: { type: Type.NUMBER },
-                    carrierDensity: { type: Type.NUMBER },
-                    relaxationTime: { type: Type.NUMBER },
-                    temperature: { type: Type.NUMBER },
-                    particleCount: { type: Type.NUMBER },
-                    mass1: { type: Type.NUMBER },
-                    mass2: { type: Type.NUMBER },
-                    velocity1: { type: Type.NUMBER },
-                    velocity2: { type: Type.NUMBER },
-                    elasticity: { type: Type.NUMBER },
-                    initialVelocity: { type: Type.NUMBER },
-                    angle: { type: Type.NUMBER },
-                    gravity: { type: Type.NUMBER },
-                    initialHeight: { type: Type.NUMBER },
-                    length: { type: Type.NUMBER },
-                    initialAngle: { type: Type.NUMBER },
-                    mass: { type: Type.NUMBER },
-                    damping: { type: Type.NUMBER },
-                    springConstant: { type: Type.NUMBER },
-                    initialDisplacement: { type: Type.NUMBER },
-                  },
-                },
-              },
-              required: ['simulationType', 'parameters'],
-            },
-          },
-        });
+    try {
+      const response = await llmService.generateCompletion(
+        prompt,
+        {
+          systemInstruction,
+          responseMimeType: 'application/json',
+          temperature: 0.2,
+        },
+        providerOptions
+      );
 
-        const responseText = response.text;
-        if (responseText) {
-          const parsed = robustJsonParse(responseText);
-          let simulationType = parsed.simulationType as SimulationType;
-          const rawParams = parsed.parameters || {};
+      const parsed = parseRobustJson(response.text);
+      if (parsed && parsed.simulationType) {
+        let simulationType = parsed.simulationType as SimulationType;
+        const rawParams = parsed.parameters || {};
 
-          // Self-check validation: confirm geometry/domain aligns with prompt keywords
-          simulationType = this.validateAndCorrectDomain(prompt, simulationType);
+        // Self-check validation: confirm domain aligns with prompt keywords
+        simulationType = this.validateAndCorrectDomain(prompt, simulationType);
 
-          const cleanParams: Record<string, any> = {};
-          for (const [key, value] of Object.entries(rawParams)) {
-            if (value !== undefined && value !== null) {
-              if (key === 'mode') {
-                cleanParams[key] = value === 'particle' ? 'particle' : 'wave';
-              } else {
-                const num = Number(value);
-                if (!isNaN(num)) {
-                  cleanParams[key] = num;
-                }
+        const cleanParams: Record<string, any> = {};
+        for (const [key, value] of Object.entries(rawParams)) {
+          if (value !== undefined && value !== null) {
+            if (key === 'mode') {
+              cleanParams[key] = value === 'particle' ? 'particle' : 'wave';
+            } else {
+              const num = Number(value);
+              if (!isNaN(num)) {
+                cleanParams[key] = num;
               }
             }
           }
+        }
 
-          return {
-            simulationType,
-            parameters: cleanParams,
-            modelUsed: model,
-            retries,
-            fallbackUsed: model !== this.modelName,
-          };
-        }
-      } catch (err: any) {
-        retries++;
-        console.warn(`[AI Service] Model attempt ${model} failed (${err.message}).`);
-        if (err.message?.includes('RESOURCE_EXHAUSTED') || err.message?.includes('429')) {
-          break; // Quota limit reached on project, immediately use deterministic heuristic engine
-        }
+        return {
+          simulationType,
+          parameters: cleanParams,
+          modelUsed: response.model,
+          retries,
+          fallbackUsed: false,
+        };
       }
+    } catch (err: any) {
+      retries++;
+      console.warn(`[AI Service] Extraction failed: ${err.message}. Using heuristic fallback.`);
     }
 
-    // Heuristic fallback if all AI models fail
-    console.warn('[AI Service] All AI models failed. Using deterministic heuristic classifier.');
+    // Heuristic fallback
     const heuristic = this.heuristicExtraction(prompt);
     return {
       ...heuristic,
-      modelUsed: 'heuristic-rule-engine',
+      modelUsed: 'heuristic-classifier',
       retries,
       fallbackUsed: true,
     };
@@ -266,10 +136,7 @@ Always return numeric values in standard specified units.
       p.includes("young's") ||
       p.includes('youngs') ||
       p.includes('interference pattern') ||
-      p.includes('fringe') ||
-      p.includes('wave particle duality') ||
-      p.includes('quantum interference') ||
-      p.includes('wavefront ripple')
+      p.includes('fringe')
     ) {
       return 'double_slit';
     }
@@ -278,11 +145,9 @@ Always return numeric values in standard specified units.
     if (
       p.includes('refract') ||
       p.includes('snell') ||
-      p.includes('light') ||
       p.includes('optic') ||
       p.includes('laser') ||
       p.includes('prism') ||
-      p.includes('ray') ||
       p.includes('index of refraction') ||
       p.includes('total internal reflection')
     ) {
@@ -291,14 +156,11 @@ Always return numeric values in standard specified units.
 
     // 3. Conductor / Electron Drift Check
     if (
-      p.includes('electron') ||
       p.includes('drift') ||
-      p.includes('wire') ||
-      p.includes('conductor') ||
-      p.includes('current flow') ||
       p.includes('drude') ||
-      p.includes('lattice') ||
-      p.includes('charge carrier')
+      p.includes('wire') ||
+      p.includes('conduction electron') ||
+      p.includes('conductor current')
     ) {
       return 'particle_drift';
     }
@@ -307,10 +169,8 @@ Always return numeric values in standard specified units.
     if (
       p.includes('collis') ||
       p.includes('billiard') ||
-      p.includes('elastic') ||
-      p.includes('inelastic') ||
-      p.includes('impact') ||
-      p.includes('momentum')
+      p.includes('elastic impact') ||
+      p.includes('inelastic impact')
     ) {
       return 'collision';
     }
@@ -318,8 +178,7 @@ Always return numeric values in standard specified units.
     // 5. Pendulum Check
     if (
       p.includes('pendulum') ||
-      p.includes('swinging') ||
-      p.includes('bob')
+      p.includes('swinging bob')
     ) {
       return 'pendulum';
     }
@@ -328,7 +187,7 @@ Always return numeric values in standard specified units.
     if (
       p.includes('spring') ||
       p.includes('hooke') ||
-      p.includes('vibrat')
+      p.includes('oscillator')
     ) {
       return 'harmonic_oscillator';
     }
@@ -338,13 +197,12 @@ Always return numeric values in standard specified units.
       p.includes('projectile') ||
       p.includes('cannon') ||
       p.includes('launch') ||
-      p.includes('throw') ||
       p.includes('ballistic')
     ) {
       return 'projectile';
     }
 
-    return extractedType;
+    return extractedType || 'dynamic';
   }
 
   /**
@@ -360,6 +218,7 @@ Always return numeric values in standard specified units.
       p.includes('double slit') ||
       p.includes('double-slit') ||
       p.includes('two slit') ||
+      p.includes('two-slit') ||
       p.includes("young's") ||
       p.includes('youngs') ||
       p.includes('interference') ||
@@ -385,9 +244,7 @@ Always return numeric values in standard specified units.
     if (
       p.includes('refract') ||
       p.includes('snell') ||
-      p.includes('light') ||
       p.includes('optic') ||
-      p.includes('laser') ||
       p.includes('prism')
     ) {
       const angleMatch = p.match(/(\d+(?:\.\d+)?)\s*(?:deg|degree|degrees|°)/i);
@@ -404,11 +261,9 @@ Always return numeric values in standard specified units.
     }
 
     if (
-      p.includes('electron') ||
       p.includes('drift') ||
-      p.includes('wire') ||
-      p.includes('conductor') ||
-      p.includes('drude')
+      p.includes('drude') ||
+      p.includes('conductor')
     ) {
       const eFieldMatch = p.match(/(\d+(?:\.\d+)?)\s*(?:v\/m|volts?\/m|v)/i);
       return {
@@ -423,7 +278,7 @@ Always return numeric values in standard specified units.
       };
     }
 
-    if (p.includes('collis') || p.includes('impact') || p.includes('billiard')) {
+    if (p.includes('collis') || p.includes('billiard')) {
       return {
         simulationType: 'collision',
         parameters: {
@@ -436,7 +291,7 @@ Always return numeric values in standard specified units.
       };
     }
 
-    if (p.includes('pendulum') || p.includes('swing')) {
+    if (p.includes('pendulum')) {
       const lengthMatch = p.match(/(\d+(?:\.\d+)?)\s*(?:m|meter|meters)/i);
       const angleMatch = p.match(/(\d+(?:\.\d+)?)\s*(?:deg|degree|degrees|°)/i);
       return {
@@ -465,17 +320,23 @@ Always return numeric values in standard specified units.
       };
     }
 
-    // Default: Projectile motion
-    const velocityMatch = p.match(/(\d+(?:\.\d+)?)\s*(?:m\/s|mps|velocity|speed)/i);
-    const angleMatch = p.match(/(\d+(?:\.\d+)?)\s*(?:deg|degree|degrees|°)/i);
+    if (p.includes('projectile') || p.includes('cannon') || p.includes('launch')) {
+      const velocityMatch = p.match(/(\d+(?:\.\d+)?)\s*(?:m\/s|mps|velocity|speed)/i);
+      const angleMatch = p.match(/(\d+(?:\.\d+)?)\s*(?:deg|degree|degrees|°)/i);
+      return {
+        simulationType: 'projectile',
+        parameters: {
+          initialVelocity: velocityMatch ? parseFloat(velocityMatch[1]) : 20,
+          angle: angleMatch ? parseFloat(angleMatch[1]) : 45,
+          gravity: 9.81,
+          initialHeight: 0,
+        },
+      };
+    }
+
     return {
-      simulationType: 'projectile',
-      parameters: {
-        initialVelocity: velocityMatch ? parseFloat(velocityMatch[1]) : 20,
-        angle: angleMatch ? parseFloat(angleMatch[1]) : 45,
-        gravity: 9.81,
-        initialHeight: 0,
-      },
+      simulationType: 'dynamic',
+      parameters: {},
     };
   }
 }

@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { dynamicSimulationService } from './dynamicSimulation.service.js';
 import { aiService } from './ai.service.js';
 import { explanationService } from './explanation.service.js';
 import { runSimulation } from '../physics/index.js';
@@ -15,59 +16,87 @@ import {
   GenerateSimulationResponse,
   SimulationType,
   SimulationParameters,
+  LLMProviderOptions,
 } from '../types/simulation.types.js';
 
 export class SimulationService {
-  async generateFromPrompt(prompt: string): Promise<GenerateSimulationResponse> {
-    // 1. Natural language understanding via Gemini AI service with domain classification & retry
+  /**
+   * Main entrypoint: Intelligently routes prompt to high-fidelity specialized 3D scenes
+   * for core physics domains, and to the universal dynamic engine for arbitrary topics.
+   */
+  async generateFromPrompt(
+    prompt: string,
+    providerOptions?: LLMProviderOptions
+  ): Promise<GenerateSimulationResponse> {
+    const trimmed = prompt.trim();
+    if (!trimmed) {
+      throw new Error('Prompt cannot be empty');
+    }
+
+    // 1. Classify domain using multi-LLM service (Agent Router / OpenAI / Gemini / etc.)
     const {
       simulationType,
       parameters: rawParams,
       modelUsed,
       retries,
       fallbackUsed,
-    } = await aiService.extractSimulationParameters(prompt);
+    } = await aiService.extractSimulationParameters(trimmed, providerOptions);
 
-    // 2. Validate simulation parameters strictly with Zod
-    const validatedParameters = this.validateParameters(
-      simulationType,
-      rawParams
-    );
+    // 2. If classified into a specialized high-fidelity 3D domain, use its specialized 3D engine!
+    if (
+      simulationType === 'double_slit' ||
+      simulationType === 'refraction' ||
+      simulationType === 'particle_drift' ||
+      simulationType === 'collision' ||
+      simulationType === 'projectile' ||
+      simulationType === 'pendulum' ||
+      simulationType === 'harmonic_oscillator'
+    ) {
+      const validatedParameters = this.validateParameters(
+        simulationType,
+        rawParams
+      );
 
-    // 3. Compute simulation using deterministic physics engine
-    const { trajectory, results } = runSimulation(
-      simulationType,
-      validatedParameters
-    );
+      const { trajectory, results } = runSimulation(
+        simulationType,
+        validatedParameters as any
+      );
 
-    // 4. Generate educational explanation based on validated physics calculations
-    const explanation = await explanationService.generateExplanation(
-      prompt,
-      simulationType,
-      validatedParameters,
-      results
-    );
-
-    // 5. Package clean response with metadata
-    const simulationId = `sim_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
-
-    return {
-      success: true,
-      simulation: {
-        id: simulationId,
-        type: simulationType,
-        parameters: validatedParameters,
-        trajectory,
+      const explanation = await explanationService.generateExplanation(
+        trimmed,
+        simulationType,
+        validatedParameters as any,
         results,
-      },
-      explanation,
-      metadata: {
-        modelUsed,
-        retries,
-        fallbackUsed,
-        template: simulationType,
-      },
-    };
+        providerOptions
+      );
+
+      const simulationId = `sim_${simulationType}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+
+      return {
+        success: true,
+        simulation: {
+          id: simulationId,
+          type: simulationType,
+          parameters: validatedParameters,
+          trajectory,
+          results,
+        },
+        explanation,
+        metadata: {
+          modelUsed,
+          retries,
+          fallbackUsed,
+          template: simulationType,
+          provider: providerOptions?.provider || 'openai',
+        },
+      };
+    }
+
+    // 3. For any arbitrary / new custom physics topic, generate dynamic 3D simulation!
+    return await dynamicSimulationService.generateDynamicSimulation(
+      trimmed,
+      providerOptions
+    );
   }
 
   private validateParameters(
@@ -140,7 +169,7 @@ export class SimulationService {
         return parsed.data;
       }
       default:
-        throw new Error(`Unsupported simulation type: ${type}`);
+        return rawParams;
     }
   }
 }

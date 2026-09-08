@@ -1,14 +1,33 @@
 import { z } from 'zod';
 
+export const llmProviderEnum = z.enum([
+  'gemini',
+  'openai',
+  'anthropic',
+  'groq',
+  'deepseek',
+  'openrouter',
+  'custom',
+]);
+
+export const llmProviderOptionsSchema = z.object({
+  provider: llmProviderEnum.optional(),
+  apiKey: z.string().optional(),
+  model: z.string().optional(),
+  baseUrl: z.string().optional(),
+});
+
 export const generateSimulationRequestSchema = z.object({
   prompt: z
     .string({ required_error: 'Prompt is required' })
     .trim()
     .min(1, 'Prompt cannot be empty')
-    .max(1000, 'Prompt is too long (max 1000 characters)'),
+    .max(2000, 'Prompt is too long (max 2000 characters)'),
+  providerOptions: llmProviderOptionsSchema.optional(),
 });
 
 export const simulationTypeEnum = z.enum([
+  'dynamic',
   'projectile',
   'pendulum',
   'harmonic_oscillator',

@@ -1,11 +1,13 @@
 export type SimulationType =
+  | 'dynamic'
   | 'projectile'
   | 'pendulum'
   | 'harmonic_oscillator'
   | 'particle_drift'
   | 'collision'
   | 'refraction'
-  | 'double_slit';
+  | 'double_slit'
+  | (string & {});
 
 export interface TrajectoryPoint {
   t: number;
@@ -89,7 +91,8 @@ export type SimulationParameters =
   | ParticleDriftParameters
   | CollisionParameters
   | RefractionParameters
-  | DoubleSlitParameters;
+  | DoubleSlitParameters
+  | Record<string, any>;
 
 export interface ProjectileResults {
   maximumHeight: number;
@@ -168,7 +171,114 @@ export type SimulationResults =
   | ParticleDriftResults
   | CollisionResults
   | RefractionResults
-  | DoubleSlitResults;
+  | DoubleSlitResults
+  | Record<string, any>;
+
+// =========================================================================
+// DYNAMIC 3D SIMULATION SPECIFICATION (UNIVERSAL ARBITRARY PHYSICS)
+// =========================================================================
+
+export type DynamicGeometryType =
+  | 'sphere'
+  | 'box'
+  | 'cylinder'
+  | 'cone'
+  | 'ring'
+  | 'torus'
+  | 'arrow'
+  | 'plane'
+  | 'particle_cloud'
+  | 'field_grid'
+  | 'spring_coil'
+  | 'wave_surface';
+
+export interface DynamicEntity {
+  id: string;
+  name: string;
+  geometry: DynamicGeometryType;
+  color: string;
+  emissive?: string;
+  emissiveIntensity?: number;
+  opacity?: number;
+  wireframe?: boolean;
+  dimensions?: [number, number, number] | number[];
+  radius?: number;
+  position: [number, number, number]; // [x, y, z]
+  velocity?: [number, number, number]; // [vx, vy, vz]
+  mass?: number;
+  charge?: number;
+  showTrail?: boolean;
+  trailColor?: string;
+  fixed?: boolean;
+  label?: string;
+  physicsRole?: 'body' | 'emitter' | 'field_source' | 'barrier' | 'target' | 'detector';
+}
+
+export interface DynamicParameter {
+  key: string;
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  unit: string;
+  description?: string;
+  category?: string;
+}
+
+export interface DynamicTelemetryDef {
+  key: string;
+  label: string;
+  unit?: string;
+  format?: string;
+  formulaDescription?: string;
+}
+
+export type DynamicPhysicsEngineType =
+  | 'nbody_gravity'
+  | 'lorentz_em'
+  | 'harmonic_spring'
+  | 'particle_flow'
+  | 'wave_equation'
+  | 'kinematic'
+  | 'rigid_body'
+  | 'quantum_packet'
+  | 'fluid_vortex'
+  | 'thermodynamics';
+
+export interface DynamicPhysicsConfig {
+  engineType: DynamicPhysicsEngineType;
+  gravity?: [number, number, number]; // [gx, gy, gz]
+  gravitationalConstant?: number; // G
+  electricField?: [number, number, number]; // [Ex, Ey, Ez]
+  magneticField?: [number, number, number]; // [Bx, By, Bz]
+  damping?: number;
+  restitution?: number;
+  springStiffness?: number;
+  fluidViscosity?: number;
+  waveSpeed?: number;
+  waveWavelength?: number;
+  waveAmplitude?: number;
+  temperature?: number;
+  timeStep?: number;
+  particleCount?: number;
+}
+
+export interface DynamicSimulationDefinition {
+  topic: string;
+  category: string;
+  sceneEnvironment?: {
+    cameraPosition?: [number, number, number];
+    cameraTarget?: [number, number, number];
+    gridVisible?: boolean;
+    ambientColor?: string;
+    ambientIntensity?: number;
+  };
+  physics: DynamicPhysicsConfig;
+  entities: DynamicEntity[];
+  parameters: DynamicParameter[];
+  telemetry: DynamicTelemetryDef[];
+}
 
 export interface PhysicsSimulationData {
   id: string;
@@ -176,6 +286,7 @@ export interface PhysicsSimulationData {
   parameters: SimulationParameters | Record<string, any>;
   trajectory: TrajectoryPoint[];
   results: Record<string, any>;
+  dynamicDefinition?: DynamicSimulationDefinition;
 }
 
 export interface SimulationExplanation {
@@ -192,6 +303,7 @@ export interface SimulationMetadata {
   retries: number;
   fallbackUsed: boolean;
   template: SimulationType;
+  provider?: string;
 }
 
 export interface GenerateSimulationResponse {
@@ -208,4 +320,24 @@ export interface ApiErrorResponse {
     message: string;
     details?: any;
   };
+}
+
+// =========================================================================
+// MULTI-LLM PROVIDER CONFIGURATION
+// =========================================================================
+
+export type LLMProvider =
+  | 'gemini'
+  | 'openai'
+  | 'anthropic'
+  | 'groq'
+  | 'deepseek'
+  | 'openrouter'
+  | 'custom';
+
+export interface LLMProviderOptions {
+  provider?: LLMProvider;
+  apiKey?: string;
+  model?: string;
+  baseUrl?: string;
 }

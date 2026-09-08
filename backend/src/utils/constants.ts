@@ -1,5 +1,5 @@
 export const DEFAULT_PORT = 5000;
-export const DEFAULT_GEMINI_MODEL = 'gemini-3.7-flash';
+export const DEFAULT_GEMINI_MODEL = 'gemini-2.5-flash';
 export const DEFAULT_FRONTEND_URL = 'http://localhost:5173';
 
 export const SIMULATION_TYPES = {
